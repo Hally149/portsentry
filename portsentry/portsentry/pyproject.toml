@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "portsentry"
+version = "0.1.0"
+description = "A small, dependency-free port scan detector (tripwire ports + firewall log watching)"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = []
+
+[project.scripts]
+portsentry = "portsentry.cli:main"
+
+[tool.setuptools]
+packages = ["portsentry"]

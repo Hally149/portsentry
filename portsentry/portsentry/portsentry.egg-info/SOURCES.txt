@@ -1,0 +1,15 @@
+README.md
+pyproject.toml
+portsentry/__init__.py
+portsentry/__main__.py
+portsentry/cli.py
+portsentry/detector.py
+portsentry/listener.py
+portsentry/logwatch.py
+portsentry/sentry.py
+portsentry.egg-info/PKG-INFO
+portsentry.egg-info/SOURCES.txt
+portsentry.egg-info/dependency_links.txt
+portsentry.egg-info/entry_points.txt
+portsentry.egg-info/top_level.txt
+tests/test_detector.py

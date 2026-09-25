@@ -1,0 +1,2 @@
+[console_scripts]
+portsentry = portsentry.cli:main

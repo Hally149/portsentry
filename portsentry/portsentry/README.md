@@ -1,0 +1,75 @@
+# portsentry
+
+A small, dependency-free port scan detector written in Python (3.8+, standard library only).
+
+It catches scans two ways:
+
+1. **Tripwire ports** – it opens decoy TCP ports. Nothing legitimate should ever connect to them, so a source that touches several different ones in a short time is scanning you.
+2. **Firewall log watching** (optional) – it tails an iptables/ufw log and counts dropped packets the same way. This catches stealth SYN scans, which never complete a handshake and so never reach a tripwire.
+
+## Quick start
+
+```bash
+# See it work: simulates a scan against loopback and prints the alert
+python -m portsentry --demo
+
+# Run it (default tripwire ports are high numbers, so no root needed)
+python -m portsentry -v
+
+# Run the tests
+python -m unittest discover -v
+```
+
+Optional install as a command: `pip install .` then run `portsentry`.
+
+## Options
+
+| Option | Default | What it does |
+|---|---|---|
+| `--ports 21,23,5900-5905` | `2121,2323,3307,5901,8081,8888,9090,9999` | Tripwire ports. Ports below 1024 need root/admin. |
+| `--threshold N` | 3 | Distinct ports inside the window that count as a scan. |
+| `--window S` | 10 | Window in seconds. |
+| `--cooldown S` | 60 | Quiet time before the same source can alert again. |
+| `--allow CIDR` | – | Ignore an address or network (repeatable), e.g. your monitoring host. |
+| `--log-file PATH` | – | Append every hit and alert as JSON lines. |
+| `--tail-log FILE` | – | Also watch a firewall log, e.g. `/var/log/ufw.log`. |
+| `--no-listen` | off | Only watch the firewall log, open no ports. |
+| `--block-cmd CMD` | off | Run a command on alert; `{ip}` is substituted. |
+| `--block-level 1\|2` | 2 | Alert level that triggers the block command. |
+| `-v` / `-q` | – | Print every hit / print nothing. |
+
+Example with everything on:
+
+```bash
+sudo python -m portsentry --ports 21,23,445,3389 --tail-log /var/log/ufw.log \
+  --allow 192.168.1.0/24 --log-file portsentry.jsonl \
+  --block-cmd "iptables -A INPUT -s {ip} -j DROP"
+```
+
+## How detection works
+
+Each source IP has a sliding window of `(time, port)` hits. When the number of **distinct** ports in the window reaches `--threshold`, that is a level 1 alert ("scan"). At three times the threshold it escalates once to level 2 ("aggressive scan"). Hammering one port repeatedly is not a scan and does not alert. IPv4-mapped IPv6 addresses are normalised so `::ffff:1.2.3.4` and `1.2.3.4` are the same source, and idle sources are dropped so memory stays bounded.
+
+## Layout
+
+```
+portsentry/
+  detector.py   sliding-window logic (pure, unit tested)
+  listener.py   tripwire sockets (selectors, non-blocking)
+  logwatch.py   firewall log parser and follower (handles rotation)
+  sentry.py     alerts: console, JSONL log, optional block command
+  cli.py        argument parsing, run loop, --demo
+tests/          unit tests for the detector and log parser
+```
+
+## Limits worth knowing
+
+- The tripwire only sees completed TCP connections. For SYN ("stealth") scans use `--tail-log` with a firewall that logs drops (e.g. `ufw logging on`).
+- Scans that stay under the threshold, or spread across many minutes or many source IPs, will not trigger. Tune `--threshold` and `--window` to your environment.
+- IPv4 and IPv6 are both parsed, but the tripwire binds one address family per run (`--bind ::` for IPv6).
+- UDP is only seen through the firewall log; there is no UDP tripwire.
+- Automatic blocking is off by default. Blocking on a false positive can lock out a legitimate host, so use `--allow` for anything you depend on. Loopback is never blocked.
+
+## Responsible use
+
+portsentry is a defensive tool: it only listens on your own machine and reads your own logs. Run it on systems you own or are authorised to monitor. The demo only touches `127.0.0.1`.
